@@ -159,13 +159,13 @@ input[type=number]{font-family:var(--display);font-size:15px;}
 
 <script>
 const FIREBASE_CONFIG = {
-  apiKey:            "PASTE_YOUR_apiKey_HERE",
-  authDomain:        "PASTE_YOUR_authDomain_HERE",
-  databaseURL:       "PASTE_YOUR_databaseURL_HERE",
-  projectId:         "PASTE_YOUR_projectId_HERE",
-  storageBucket:     "PASTE_YOUR_storageBucket_HERE",
-  messagingSenderId: "PASTE_YOUR_messagingSenderId_HERE",
-  appId:             "PASTE_YOUR_appId_HERE"
+  apiKey:            "AIzaSyDquv5qMWqkJBMRr5rI65sB5OAQG4UovCY",
+  authDomain:        "bowling-pots.firebaseapp.com",
+  databaseURL:       "https://bowling-pots-default-rtdb.firebaseio.com",
+  projectId:         "bowling-pots",
+  storageBucket:     "bowling-pots.firebasestorage.app",
+  messagingSenderId: "159904860713",
+  appId:             "1:159904860713:web:491fac5902bdbab974aa38"
 };
 const ADMIN_PIN = "1234";
 </script>
@@ -912,19 +912,26 @@ function renderStandings() {
   }
 
   const rows=S.players.map(p=>({
-    name:p, hg:hgNets[p]||0, hs:hsNets[p]||0, ms:msNets[p]||0, sv:svNets[p]||0,
+    name:p,
+    hg:hgNets[p]||0, hs:hsNets[p]||0, ms:msNets[p]||0, sv:svNets[p]||0,
+    // gross winnings per pot (before cost deduction) for display under name
+    hgWon: (()=>{ let w=0; for(let g=0;g<9;g++){ const pot=P.hgEach; const data=S.players.map(q=>({name:q,score:gs(g,q)})); const {first,second}=winners2(data,q=>q.score); const inf=first.find(x=>x.name===p); const ins=second.find(x=>x.name===p); if(inf&&first.length>1) w+=(pot*0.7+pot*0.3)/first.length; else if(inf) w+=pot*0.7; else if(ins) w+=pot*0.3/second.length; } return w; })(),
+    hsWon: (()=>{ const data=S.players.map(q=>({name:q,s:getTotalSeries(q)})); const {first,second}=winners2(data,q=>q.s); const inf=first.find(x=>x.name===p); const ins=second.find(x=>x.name===p); if(inf&&first.length>1) return P.hs; if(inf) return P.hs*0.7; if(ins) return P.hs*0.3/second.length; return 0; })(),
+    msWon: msW.has(p) ? P.ms : 0,
+    svWon: (()=>{ let w=0; for(let sv=0;sv<3;sv++){ const svPot=P.sv3Each; const elim=(S.svElim&&S.svElim[sv])||{}; const fin=S.players.filter(q=>elim[q]===null||elim[q]===undefined); const gFinal=fin.map(q=>({name:q,score:gs(setGameIndices(sv)[2],q)})).sort((a,b)=>b.score-a.score); const idx=gFinal.findIndex(x=>x.name===p); if(idx>=0&&idx<3&&gFinal[idx].score>0) w+=svPot*payouts[idx]; } const e9=(S.svElim&&S.svElim[3])||{}; const fin9=S.players.filter(q=>e9[q]===null||e9[q]===undefined); const g9=fin9.map(q=>({name:q,score:gs(8,q)})).sort((a,b)=>b.score-a.score); const idx9=g9.findIndex(x=>x.name===p); if(idx9>=0&&idx9<3&&g9[idx9].score>0) w+=P.sv9*payouts[idx9]; return w; })(),
     total:(hgNets[p]||0)+(hsNets[p]||0)+(msNets[p]||0)+(svNets[p]||0)
-  })).sort((a,b)=>b.total-a.total);
+  })).sort((a,b)=>(b.hgWon+b.hsWon+b.msWon+b.svWon)-(a.hgWon+a.hsWon+a.msWon+a.svWon));
 
-  document.getElementById('standings-table').innerHTML=rows.map((r,i)=>
-    `<div class="pr">
+  document.getElementById('standings-table').innerHTML=rows.map((r,i)=>{
+    const grossTotal=r.hgWon+r.hsWon+r.msWon+r.svWon;
+    return `<div class="pr">
       <div>
-        <div class="pr-name">${i===0&&r.total>0?'🏆 ':''}${r.name}</div>
-        ${(()=>{const parts=[];if(r.hg>0)parts.push('HG '+fmt(r.hg));if(r.hs>0)parts.push('HS '+fmt(r.hs));if(r.ms>0)parts.push('MS '+fmt(r.ms));if(r.sv>0)parts.push('SV '+fmt(r.sv));return parts.length?`<div class="small muted">${parts.join(' · ')}</div>`:''})()}
+        <div class="pr-name">${i===0&&grossTotal>0?'🏆 ':''}${r.name}</div>
+        ${(()=>{const parts=[];if(r.hgWon>0)parts.push('HG '+fmt(r.hgWon));if(r.hsWon>0)parts.push('HS '+fmt(r.hsWon));if(r.msWon>0)parts.push('MS '+fmt(r.msWon));if(r.svWon>0)parts.push('SV '+fmt(r.svWon));return parts.length?`<div class="small muted">${parts.join(' · ')}</div>`:''})()}
       </div>
-      <div class="${r.total>=0?'pr-pos':'pr-neg'}">${r.total>=0?fmt(r.total):'$0'}</div>
-    </div>`
-  ).join('');
+      <div class="pr-pos">${fmt(grossTotal)}</div>
+    </div>`;
+  }).join('');
 
   document.getElementById('session-info').innerHTML=`
     <div class="pr"><span class="muted">Session</span><span>${S.sessionName}</span></div>
